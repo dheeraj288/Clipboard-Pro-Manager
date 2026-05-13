@@ -1,0 +1,129 @@
+body {
+  margin: 0;
+  font-family: "Inter", Arial, sans-serif;
+  width: 380px;
+  background: #05060a;
+  color: #e5e7eb;
+}
+
+/* grid background */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  background-image: linear-gradient(rgba(255,255,255,0.04) 1px, transparent 1px),
+                    linear-gradient(90deg, rgba(255,255,255,0.04) 1px, transparent 1px);
+  background-size: 40px 40px;
+  pointer-events: none;
+  opacity: 0.2;
+}
+
+/* container */
+.container {
+  padding: 14px;
+}
+
+/* header */
+.header {
+  font-size: 18px;
+  font-weight: 700;
+  margin-bottom: 12px;
+  color: #fff;
+}
+
+/* search */
+#search {
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,0.08);
+  background: rgba(255,255,255,0.03);
+  color: white;
+  outline: none;
+  margin-bottom: 12px;
+}
+
+#search:focus {
+  border-color: #7c3aed;
+  box-shadow: 0 0 0 3px rgba(124,58,237,0.2);
+}
+
+/* cards */
+.card {
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.06);
+  padding: 12px;
+  margin-bottom: 10px;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  word-break: break-word;
+  position: relative;
+  overflow: hidden;
+}
+
+.card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(124,58,237,0.4);
+  box-shadow: 0 10px 25px rgba(124,58,237,0.15);
+}
+
+/* top glow line */
+.card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 2px;
+  width: 0;
+  background: linear-gradient(90deg, #7c3aed, #22d3ee);
+  transition: 0.3s;
+}
+
+.card:hover::before {
+  width: 100%;
+}
+
+/* time badge */
+.time {
+  font-size: 10px;
+  color: #9ca3af;
+  margin-top: 6px;
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.06);
+}
+
+/* toast */
+#toast {
+  position: fixed;
+  bottom: 18px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0,0,0,0.85);
+  color: white;
+  padding: 10px 14px;
+  border-radius: 10px;
+  font-size: 13px;
+  opacity: 0;
+  transition: 0.3s;
+  pointer-events: none;
+  z-index: 9999; /* IMPORTANT */
+}
+
+#toast.show {
+  opacity: 1;
+  transform: translateX(-50%) translateY(-5px);
+}
+/* code */
+.code {
+  font-family: "JetBrains Mono", monospace;
+  white-space: pre-wrap;
+  color: #22c55e;
+  background: rgba(0,0,0,0.4);
+  padding: 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,0.06);
+}

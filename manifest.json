@@ -1,0 +1,26 @@
+{
+  "manifest_version": 3,
+  "name": "Pro Clipboard Manager",
+  "version": "1.0.0",
+  "description": "Beautiful clipboard history manager",
+
+  "permissions": [
+    "storage",
+    "clipboardWrite"
+  ],
+
+  "background": {
+    "service_worker": "background.js"
+  },
+
+  "action": {
+    "default_popup": "popup/popup.html"
+  },
+
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"]
+    }
+  ]
+}
