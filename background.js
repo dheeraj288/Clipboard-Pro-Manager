@@ -1,23 +1,22 @@
 chrome.runtime.onMessage.addListener((msg) => {
 
-  if (msg.type === "SAVE") {
+  if (msg.type === "ADD") {
 
-    chrome.storage.local.get(["history"], (res) => {
+    chrome.storage.local.get(["clips"], (res) => {
 
-      let history = res.history || [];
+      let clips = res.clips || [];
 
-      // remove duplicates
-      history = history.filter(i => i.text !== msg.text);
+      clips = clips.filter(i => i.text !== msg.text);
 
-      history.unshift({
+      clips.unshift({
         id: Date.now(),
         text: msg.text,
         time: new Date().toLocaleString()
       });
 
-      history = history.slice(0, 200);
+      clips = clips.slice(0, 300);
 
-      chrome.storage.local.set({ history });
+      chrome.storage.local.set({ clips });
 
     });
 

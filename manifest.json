@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Pro Clipboard Manager",
-  "version": "1.0.0",
-  "description": "Beautiful clipboard history manager",
+  "name": "Clipboard Pro Manager",
+  "version": "2.0.0",
+  "description": "Smart clipboard history with modern UI",
 
   "permissions": [
     "storage",

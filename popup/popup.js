@@ -1,19 +1,22 @@
 const list = document.getElementById("list");
 const search = document.getElementById("search");
-const toast = document.getElementById("toast"); // 👈 ADD THIS
+const toast = document.getElementById("toast");
 
 let data = [];
 
 /* detect code */
 function isCode(text) {
-  return text.includes("{") ||
-         text.includes("function") ||
-         text.includes("=>") ||
-         text.includes(";") ||
-         text.includes("\n");
+  return (
+    text.includes("{") ||
+    text.includes("function") ||
+    text.includes("class") ||
+    text.includes("=>") ||
+    text.includes("\n") ||
+    text.includes(";")
+  );
 }
 
-/* 🔥 TOAST FUNCTION (ADD THIS) */
+/* toast */
 function showToast() {
   if (!toast) return;
 
@@ -21,7 +24,7 @@ function showToast() {
 
   setTimeout(() => {
     toast.classList.remove("show");
-  }, 1500);
+  }, 1200);
 }
 
 /* render UI */
@@ -34,34 +37,40 @@ function render(items) {
     const div = document.createElement("div");
     div.className = "card";
 
-    const content = isCode(item.text)
-      ? `<div class="code">${item.text}</div>`
-      : `<div>${item.text}</div>`;
+    const content = document.createElement("div");
 
-    div.innerHTML = `
-      ${content}
-      <div class="time">${item.time}</div>
-    `;
+    if (isCode(item.text)) {
+      content.className = "code";
+      content.textContent = item.text; // preserve formatting
+    } else {
+      content.textContent = item.text;
+    }
 
-    /* 🔥 COPY + TOAST */
-    div.onclick = async () => {
-      try {
-        await navigator.clipboard.writeText(item.text);
-        showToast(); // 👈 ADD THIS
-      } catch (err) {
-        console.log(err);
-      }
-    };
+    const time = document.createElement("div");
+    time.className = "time";
+    time.textContent = item.time;
+
+    div.appendChild(content);
+    div.appendChild(time);
+
+    div.addEventListener("click", async () => {
+      await navigator.clipboard.writeText(item.text);
+      showToast();
+    });
 
     list.appendChild(div);
   });
 }
 
-/* load data */
-chrome.storage.local.get(["history"], (res) => {
-  data = res.history || [];
-  render(data);
-});
+/* load data (IMPORTANT: clips use karo) */
+function loadData() {
+  chrome.storage.local.get(["clips"], (res) => {
+    data = res.clips || [];
+    render(data);
+  });
+}
+
+loadData();
 
 /* search */
 search.addEventListener("input", (e) => {
@@ -69,7 +78,9 @@ search.addEventListener("input", (e) => {
   const val = e.target.value.toLowerCase();
 
   render(
-    data.filter(i => i.text.toLowerCase().includes(val))
+    data.filter(i =>
+      i.text.toLowerCase().includes(val)
+    )
   );
 
 });
