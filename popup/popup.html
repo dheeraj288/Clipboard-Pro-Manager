@@ -1,24 +1,54 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8" />
-  <title>Clipboard History</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Clipboard Pro</title>
+
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 
   <link rel="stylesheet" href="popup.css">
 </head>
 
 <body>
 
-  <div class="container">
-    <div class="header">Clipboard History</div>
+  <div class="app">
 
-    <input id="search" placeholder="Search copied text..." />
+    <!-- HEADER -->
+    <header class="header">
 
+      <div class="logo">
+        <span>📋</span>
+      </div>
+
+      <div class="title">
+        <h1>Clipboard Pro</h1>
+        <p>Smart clipboard manager</p>
+      </div>
+
+    </header>
+
+    <!-- SEARCH -->
+    <input id="search" type="text" placeholder="Search clips..." />
+
+    <!-- TABS -->
+    <div class="tabs">
+      <button id="all" class="active">All</button>
+      <button id="code">Code</button>
+      <button id="text">Text</button>
+      <button id="link">Link</button>
+    </div>
+
+    <!-- LIST -->
     <div id="list"></div>
+
   </div>
 
-  <div id="toast">Copied ✅</div>
+  <!-- TOAST -->
+  <div id="toast">Copied ✔</div>
 
   <script src="popup.js"></script>
+
 </body>
 </html>

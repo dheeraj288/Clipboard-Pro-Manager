@@ -1,22 +1,15 @@
 {
   "manifest_version": 3,
-  "name": "Clipboard Pro Manager",
-  "version": "2.0.0",
-  "description": "Smart clipboard history with modern UI",
-
-  "permissions": [
-    "storage",
-    "clipboardWrite"
-  ],
-
+  "name": "Clipboard Pro",
+  "version": "3.0.0",
+  "description": "Advanced clipboard manager with smart UI",
+  "permissions": ["storage"],
   "background": {
     "service_worker": "background.js"
   },
-
   "action": {
     "default_popup": "popup/popup.html"
   },
-
   "content_scripts": [
     {
       "matches": ["<all_urls>"],

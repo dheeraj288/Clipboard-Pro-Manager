@@ -3,46 +3,93 @@ const search = document.getElementById("search");
 const toast = document.getElementById("toast");
 
 let data = [];
+let currentFilter = "all";
 
-/* detect code */
-function isCode(text) {
-  return (
-    text.includes("{") ||
-    text.includes("function") ||
-    text.includes("class") ||
-    text.includes("=>") ||
-    text.includes("\n") ||
-    text.includes(";")
-  );
+/* TYPE DETECT */
+function getType(text) {
+  const url = /(https?:\/\/[^\s]+)/;
+
+  if (url.test(text)) return "link";
+  if (text.includes("{") || text.includes("function") || text.includes("=>")) return "code";
+  return "text";
 }
 
-/* toast */
+/* TOAST */
 function showToast() {
-  if (!toast) return;
-
   toast.classList.add("show");
-
-  setTimeout(() => {
-    toast.classList.remove("show");
-  }, 1200);
+  setTimeout(() => toast.classList.remove("show"), 1200);
 }
 
-/* render UI */
-function render(items) {
+/* FILTER */
+function filterData(items) {
+  if (currentFilter === "all") return items;
+  return items.filter(i => getType(i.text) === currentFilter);
+}
 
+/* SORT (PIN FIRST) */
+function sortData(items) {
+  return items.sort((a, b) => (b.pinned === true) - (a.pinned === true));
+}
+
+/* RENDER */
+function render(items) {
   list.innerHTML = "";
 
-  items.forEach(item => {
+  const finalData = filterData(sortData(items));
 
-    const div = document.createElement("div");
-    div.className = "card";
+  if (!finalData.length) {
+    list.innerHTML = `<div class="empty">No clips found 🚀</div>`;
+    return;
+  }
 
+  finalData.forEach(item => {
+
+    const card = document.createElement("div");
+    card.className = "card";
+
+    const type = getType(item.text);
+
+    const badge = document.createElement("div");
+    badge.className = "badge";
+    badge.textContent = type.toUpperCase();
+
+    const actions = document.createElement("div");
+    actions.className = "actions";
+
+    /* DELETE */
+    const del = document.createElement("button");
+    del.className = "icon-btn";
+    del.innerHTML = "✕";
+
+    del.onclick = (e) => {
+      e.stopPropagation();
+      deleteClip(item.id);
+    };
+
+    /* FAVORITE / PIN */
+    const pin = document.createElement("button");
+    pin.className = "icon-btn";
+    pin.innerHTML = item.pinned ? "⭐" : "☆";
+
+    pin.onclick = (e) => {
+      e.stopPropagation();
+      togglePin(item.id);
+    };
+
+    actions.appendChild(del);
+    actions.appendChild(pin);
+
+    /* CONTENT */
     const content = document.createElement("div");
 
-    if (isCode(item.text)) {
-      content.className = "code";
-      content.textContent = item.text; // preserve formatting
+    if (type === "code") {
+      content.className = "content code";
+      content.innerText = item.text; // IMPORTANT for code formatting
+    } else if (type === "link") {
+      content.className = "content";
+      content.innerHTML = `<a href="${item.text}" target="_blank" class="clip-link">${item.text}</a>`;
     } else {
+      content.className = "content";
       content.textContent = item.text;
     }
 
@@ -50,37 +97,100 @@ function render(items) {
     time.className = "time";
     time.textContent = item.time;
 
-    div.appendChild(content);
-    div.appendChild(time);
-
-    div.addEventListener("click", async () => {
+    /* COPY */
+    card.onclick = async () => {
       await navigator.clipboard.writeText(item.text);
       showToast();
-    });
+    };
 
-    list.appendChild(div);
+    card.appendChild(badge);
+    card.appendChild(actions);
+    card.appendChild(content);
+    card.appendChild(time);
+
+    list.appendChild(card);
   });
 }
 
-/* load data (IMPORTANT: clips use karo) */
-function loadData() {
+/* LOAD */
+function load() {
   chrome.storage.local.get(["clips"], (res) => {
     data = res.clips || [];
     render(data);
   });
 }
 
-loadData();
+/* ADD */
+chrome.runtime.onMessage.addListener((msg) => {
+  if (msg.type === "ADD") {
 
-/* search */
-search.addEventListener("input", (e) => {
+    chrome.storage.local.get(["clips"], (res) => {
 
-  const val = e.target.value.toLowerCase();
+      let clips = res.clips || [];
 
-  render(
-    data.filter(i =>
-      i.text.toLowerCase().includes(val)
-    )
-  );
+      clips = clips.filter(i => i.text !== msg.text);
 
+      clips.unshift({
+        id: Date.now(),
+        text: msg.text,
+        time: new Date().toLocaleString(),
+        pinned: false
+      });
+
+      clips = clips.slice(0, 300);
+
+      chrome.storage.local.set({ clips }, load);
+    });
+  }
 });
+
+/* DELETE */
+function deleteClip(id) {
+  chrome.storage.local.get(["clips"], (res) => {
+    let clips = res.clips || [];
+    clips = clips.filter(i => i.id !== id);
+    chrome.storage.local.set({ clips }, load);
+  });
+}
+
+/* PIN */
+function togglePin(id) {
+  chrome.storage.local.get(["clips"], (res) => {
+    let clips = res.clips || [];
+
+    clips = clips.map(i =>
+      i.id === id ? { ...i, pinned: !i.pinned } : i
+    );
+
+    chrome.storage.local.set({ clips }, load);
+  });
+}
+
+/* SEARCH */
+search.addEventListener("input", (e) => {
+  const v = e.target.value.toLowerCase();
+  render(data.filter(i => i.text.toLowerCase().includes(v)));
+});
+
+/* TABS FIX */
+document.getElementById("all").onclick = () => {
+  currentFilter = "all";
+  render(data);
+};
+
+document.getElementById("code").onclick = () => {
+  currentFilter = "code";
+  render(data);
+};
+
+document.getElementById("text").onclick = () => {
+  currentFilter = "text";
+  render(data);
+};
+
+document.getElementById("link").onclick = () => {
+  currentFilter = "link";
+  render(data);
+};
+
+load();
