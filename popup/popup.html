@@ -2,83 +2,40 @@
 <html lang="en">
 
 <head>
-
   <meta charset="UTF-8" />
-
-  <meta
-    name="viewport"
-    content="width=device-width, initial-scale=1.0"
-  />
-
+  <meta name="viewport"content="width=device-width, initial-scale=1.0"/>
   <title>Clipboard Pro</title>
 
   <link
     href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
     rel="stylesheet"
   />
-
   <link rel="stylesheet" href="popup.css">
-
 </head>
 
 <body>
-
   <div class="app">
-
     <header class="header">
-
       <div class="logo">📋</div>
-
       <div>
         <h1>Clipboard Pro</h1>
         <p>Smart clipboard manager</p>
       </div>
-
     </header>
 
-    <!-- SEARCH -->
-
-    <input
-      id="search"
-      type="text"
-      placeholder="Search clips..."
-    />
-
-    <!-- TABS -->
+    <input id="search" type="text" placeholder="Search clips..." />
 
     <div class="tabs">
-
-      <button class="tab active" data-type="all">
-        All
-      </button>
-
-      <button class="tab" data-type="code">
-        Code
-      </button>
-
-      <button class="tab" data-type="text">
-        Text
-      </button>
-
-      <button class="tab" data-type="link">
-        Links
-      </button>
-
+      <button class="tab active" data-type="all">All</button>
+      <button class="tab" data-type="code">Code</button>
+      <button class="tab" data-type="text">Text</button>
+      <button class="tab" data-type="link">Links</button>
     </div>
 
-    <!-- LIST -->
-
     <div id="list"></div>
-
   </div>
 
-  <!-- TOAST -->
-
-  <div id="toast">
-    Copied ✔
-  </div>
-
+  <div id="toast">Copied ✔</div>
   <script src="popup.js"></script>
-
 </body>
 </html>
