@@ -5,192 +5,368 @@ const toast = document.getElementById("toast");
 let data = [];
 let currentFilter = "all";
 
-/* TYPE DETECT */
-function getType(text) {
-  const url = /(https?:\/\/[^\s]+)/;
+/* TYPE DETECTION */
 
-  if (url.test(text)) return "link";
-  if (text.includes("{") || text.includes("function") || text.includes("=>")) return "code";
+function getType(text) {
+
+  const trimmed = text.trim();
+
+  /* 1. LINK (safe & correct) */
+  const urlRegex = /(https?:\/\/[^\s]+)/i;
+
+  if (urlRegex.test(trimmed)) {
+    return "link";
+  }
+
+  /* 2. CODE (simple + practical) */
+  const codeHints = [
+    "function",
+    "const ",
+    "let ",
+    "var ",
+    "=>",
+    "{",
+    "}",
+    "(",
+    ")",
+    ";",
+    "console.",
+    "document.",
+    "chrome.",
+    "xml.",
+    "href =>",
+    "class ",
+    "def ",
+    "end"
+  ];
+
+  const isCode = codeHints.some(hint =>
+    text.includes(hint)
+  );
+
+  if (isCode) {
+    return "code";
+  }
+
+  /* 3. DEFAULT TEXT */
   return "text";
 }
-
 /* TOAST */
+
 function showToast() {
+
   toast.classList.add("show");
-  setTimeout(() => toast.classList.remove("show"), 1200);
+
+  setTimeout(() => {
+    toast.classList.remove("show");
+  }, 1200);
 }
 
 /* FILTER */
+
 function filterData(items) {
-  if (currentFilter === "all") return items;
-  return items.filter(i => getType(i.text) === currentFilter);
+
+  if (currentFilter === "all") {
+    return items;
+  }
+
+  return items.filter(item =>
+    getType(item.text) === currentFilter
+  );
 }
 
-/* SORT (PIN FIRST) */
+/* SORT */
+
 function sortData(items) {
-  return items.sort((a, b) => (b.pinned === true) - (a.pinned === true));
+
+  return [...items].sort(
+    (a, b) =>
+      (b.pinned === true) -
+      (a.pinned === true)
+  );
 }
 
 /* RENDER */
+
 function render(items) {
+
   list.innerHTML = "";
 
-  const finalData = filterData(sortData(items));
+  const finalData = filterData(
+    sortData(items)
+  );
 
   if (!finalData.length) {
-    list.innerHTML = `<div class="empty">No clips found 🚀</div>`;
+
+    list.innerHTML = `
+      <div class="empty">
+        No clips found 🚀
+      </div>
+    `;
+
     return;
   }
 
   finalData.forEach(item => {
 
+    const type = getType(item.text);
+
+    /* CARD */
+
     const card = document.createElement("div");
     card.className = "card";
 
-    const type = getType(item.text);
+    /* BADGE */
 
     const badge = document.createElement("div");
-    badge.className = "badge";
-    badge.textContent = type.toUpperCase();
 
-    const actions = document.createElement("div");
+    badge.className = "badge";
+
+    badge.textContent =
+      type.toUpperCase();
+
+    /* ACTIONS */
+
+    const actions =
+      document.createElement("div");
+
     actions.className = "actions";
 
-    /* DELETE */
-    const del = document.createElement("button");
-    del.className = "icon-btn";
+    /* DELETE BUTTON */
+
+    const del =
+      document.createElement("button");
+
+    del.className =
+      "icon-btn delete";
+
     del.innerHTML = "✕";
 
     del.onclick = (e) => {
+
       e.stopPropagation();
+
       deleteClip(item.id);
     };
 
-    /* FAVORITE / PIN */
-    const pin = document.createElement("button");
-    pin.className = "icon-btn";
-    pin.innerHTML = item.pinned ? "⭐" : "☆";
+    /* PIN BUTTON */
+
+    const pin =
+      document.createElement("button");
+
+    pin.className =
+      "icon-btn pin";
+
+    pin.innerHTML =
+      item.pinned ? "⭐" : "☆";
 
     pin.onclick = (e) => {
+
       e.stopPropagation();
+
       togglePin(item.id);
     };
 
-    actions.appendChild(del);
-    actions.appendChild(pin);
+    actions.append(del, pin);
 
     /* CONTENT */
-    const content = document.createElement("div");
+
+    const content =
+      document.createElement("div");
+
+    /* CODE */
 
     if (type === "code") {
-      content.className = "content code";
-      content.innerText = item.text; // IMPORTANT for code formatting
-    } else if (type === "link") {
-      content.className = "content";
-      content.innerHTML = `<a href="${item.text}" target="_blank" class="clip-link">${item.text}</a>`;
-    } else {
-      content.className = "content";
-      content.textContent = item.text;
+
+      content.className =
+        "content code";
+
+      /* IMPORTANT */
+
+      content.textContent =
+        item.text;
+
     }
 
-    const time = document.createElement("div");
+    /* LINK */
+
+    else if (type === "link") {
+
+      content.className =
+        "content";
+
+      content.innerHTML = `
+        <a
+          href="${item.text}"
+          target="_blank"
+          class="clip-link"
+        >
+          ${item.text}
+        </a>
+      `;
+    }
+
+    /* TEXT */
+
+    else {
+
+      content.className =
+        "content";
+
+      content.textContent =
+        item.text;
+    }
+
+    /* TIME */
+
+    const time =
+      document.createElement("div");
+
     time.className = "time";
-    time.textContent = item.time;
+
+    time.textContent =
+      item.time;
 
     /* COPY */
+
     card.onclick = async () => {
-      await navigator.clipboard.writeText(item.text);
+
+      await navigator
+        .clipboard
+        .writeText(item.text);
+
       showToast();
     };
 
-    card.appendChild(badge);
-    card.appendChild(actions);
-    card.appendChild(content);
-    card.appendChild(time);
+    /* APPEND */
+
+    card.append(
+      badge,
+      actions,
+      content,
+      time
+    );
 
     list.appendChild(card);
   });
 }
 
 /* LOAD */
+
 function load() {
-  chrome.storage.local.get(["clips"], (res) => {
-    data = res.clips || [];
-    render(data);
-  });
+
+  chrome.storage.local.get(
+    ["clips"],
+    (res) => {
+
+      data = res.clips || [];
+
+      render(data);
+    }
+  );
 }
 
-/* ADD */
-chrome.runtime.onMessage.addListener((msg) => {
-  if (msg.type === "ADD") {
+/* DELETE */
 
-    chrome.storage.local.get(["clips"], (res) => {
+function deleteClip(id) {
+
+  chrome.storage.local.get(
+    ["clips"],
+    (res) => {
 
       let clips = res.clips || [];
 
-      clips = clips.filter(i => i.text !== msg.text);
+      clips = clips.filter(
+        item => item.id !== id
+      );
 
-      clips.unshift({
-        id: Date.now(),
-        text: msg.text,
-        time: new Date().toLocaleString(),
-        pinned: false
-      });
-
-      clips = clips.slice(0, 300);
-
-      chrome.storage.local.set({ clips }, load);
-    });
-  }
-});
-
-/* DELETE */
-function deleteClip(id) {
-  chrome.storage.local.get(["clips"], (res) => {
-    let clips = res.clips || [];
-    clips = clips.filter(i => i.id !== id);
-    chrome.storage.local.set({ clips }, load);
-  });
+      chrome.storage.local.set(
+        { clips },
+        load
+      );
+    }
+  );
 }
 
 /* PIN */
+
 function togglePin(id) {
-  chrome.storage.local.get(["clips"], (res) => {
-    let clips = res.clips || [];
 
-    clips = clips.map(i =>
-      i.id === id ? { ...i, pinned: !i.pinned } : i
-    );
+  chrome.storage.local.get(
+    ["clips"],
+    (res) => {
 
-    chrome.storage.local.set({ clips }, load);
-  });
+      let clips = res.clips || [];
+
+      clips = clips.map(item =>
+
+        item.id === id
+          ? {
+              ...item,
+              pinned: !item.pinned
+            }
+          : item
+      );
+
+      chrome.storage.local.set(
+        { clips },
+        load
+      );
+    }
+  );
 }
 
 /* SEARCH */
-search.addEventListener("input", (e) => {
-  const v = e.target.value.toLowerCase();
-  render(data.filter(i => i.text.toLowerCase().includes(v)));
-});
 
-/* TABS FIX */
-document.getElementById("all").onclick = () => {
-  currentFilter = "all";
-  render(data);
-};
+search.addEventListener(
+  "input",
+  (e) => {
 
-document.getElementById("code").onclick = () => {
-  currentFilter = "code";
-  render(data);
-};
+    const value =
+      e.target.value.toLowerCase();
 
-document.getElementById("text").onclick = () => {
-  currentFilter = "text";
-  render(data);
-};
+    const filtered = data.filter(
+      item =>
+        item.text
+          .toLowerCase()
+          .includes(value)
+    );
 
-document.getElementById("link").onclick = () => {
-  currentFilter = "link";
-  render(data);
-};
+    render(filtered);
+  }
+);
+
+/* TABS */
+
+document
+  .querySelectorAll(".tab")
+  .forEach(tab => {
+
+    tab.onclick = () => {
+
+      document
+        .querySelectorAll(".tab")
+        .forEach(btn =>
+          btn.classList.remove("active")
+        );
+
+      tab.classList.add("active");
+
+      currentFilter =
+        tab.dataset.type;
+
+      render(data);
+    };
+  });
+
+/* LIVE UPDATE */
+
+chrome.storage.onChanged.addListener(
+  () => {
+    load();
+  }
+);
+
+/* INITIAL LOAD */
 
 load();
