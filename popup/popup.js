@@ -1,372 +1,250 @@
+import {
+  fetchClips,
+  deleteClipApi,
+  toggleFavoriteApi,
+} from "../services/api.js";
+
+/* ELEMENTS */
 const list = document.getElementById("list");
 const search = document.getElementById("search");
 const toast = document.getElementById("toast");
 
+/* STATE */
 let data = [];
 let currentFilter = "all";
 
+/* ESCAPE HTML (SAFE CODE RENDER) */
+function escapeHtml(text = "") {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
 /* TYPE DETECTION */
-
-function getType(text) {
-
+function getType(text = "") {
   const trimmed = text.trim();
 
-  /* 1. LINK (safe & correct) */
   const urlRegex = /(https?:\/\/[^\s]+)/i;
+  if (urlRegex.test(trimmed)) return "link";
 
-  if (urlRegex.test(trimmed)) {
-    return "link";
-  }
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (emailRegex.test(trimmed)) return "text";
 
-  /* 2. CODE (simple + practical) */
-  const codeHints = [
-    "function",
-    "const ",
-    "let ",
-    "var ",
-    "=>",
-    "{",
-    "}",
-    "(",
-    ")",
-    ";",
-    "console.",
-    "document.",
-    "chrome.",
-    "xml.",
-    "href =>",
-    "class ",
-    "def ",
-    "end"
+  const strongCodePatterns = [
+    /function\s+\w+\s*\(/,
+    /const\s+\w+\s*=/,
+    /let\s+\w+\s*=/,
+    /class\s+\w+/,
+    /=>/,
+    /console\./,
+    /document\./,
+    /chrome\./,
+    /\{\s*[\s\S]*\}/,
   ];
 
-  const isCode = codeHints.some(hint =>
-    text.includes(hint)
-  );
-
-  if (isCode) {
+  if (strongCodePatterns.some((p) => p.test(trimmed))) {
     return "code";
   }
 
-  /* 3. DEFAULT TEXT */
   return "text";
 }
+
 /* TOAST */
-
 function showToast() {
-
   toast.classList.add("show");
+  setTimeout(() => toast.classList.remove("show"), 1200);
+}
 
-  setTimeout(() => {
-    toast.classList.remove("show");
-  }, 1200);
+/* SAFE TIME */
+function safeTime(item) {
+  return new Date(item.created_at || Date.now()).toLocaleString();
 }
 
 /* FILTER */
-
 function filterData(items) {
+  if (currentFilter === "all") return items;
 
-  if (currentFilter === "all") {
-    return items;
-  }
-
-  return items.filter(item =>
-    getType(item.text) === currentFilter
+  return items.filter(
+    (item) => getType(item.content) === currentFilter
   );
 }
 
 /* SORT */
-
 function sortData(items) {
+  return [...items].sort((a, b) => {
+    return (b.is_favorite === true) - (a.is_favorite === true);
+  });
+}
 
-  return [...items].sort(
-    (a, b) =>
-      (b.pinned === true) -
-      (a.pinned === true)
+/* 🔥 SYNTAX HIGHLIGHT FUNCTION */
+function highlightCode(code) {
+  if (!window.Prism) {
+    return escapeHtml(code);
+  }
+
+  const escaped = escapeHtml(code);
+  return Prism.highlight(
+    escaped,
+    Prism.languages.javascript,
+    "javascript"
   );
 }
 
 /* RENDER */
-
-function render(items) {
-
+function render(items = []) {
   list.innerHTML = "";
 
-  const finalData = filterData(
-    sortData(items)
-  );
+  const finalData = filterData(sortData(items));
 
   if (!finalData.length) {
-
-    list.innerHTML = `
-      <div class="empty">
-        No clips found 🚀
-      </div>
-    `;
-
+    list.innerHTML = `<div class="empty">No clips found 🚀</div>`;
     return;
   }
 
-  finalData.forEach(item => {
-
-    const type = getType(item.text);
-
-    /* CARD */
+  finalData.forEach((item) => {
+    const type = getType(item.content);
 
     const card = document.createElement("div");
     card.className = "card";
 
-    /* BADGE */
-
     const badge = document.createElement("div");
-
     badge.className = "badge";
+    badge.textContent = type.toUpperCase();
 
-    badge.textContent =
-      type.toUpperCase();
-
-    /* ACTIONS */
-
-    const actions =
-      document.createElement("div");
-
+    const actions = document.createElement("div");
     actions.className = "actions";
 
-    /* DELETE BUTTON */
-
-    const del =
-      document.createElement("button");
-
-    del.className =
-      "icon-btn delete";
-
+    /* DELETE */
+    const del = document.createElement("button");
+    del.className = "icon-btn delete";
     del.innerHTML = "✕";
-
-    del.onclick = (e) => {
-
+    del.onclick = async (e) => {
       e.stopPropagation();
-
-      deleteClip(item.id);
+      await handleDelete(item.id);
     };
 
-    /* PIN BUTTON */
-
-    const pin =
-      document.createElement("button");
-
-    pin.className =
-      "icon-btn pin";
-
-    pin.innerHTML =
-      item.pinned ? "⭐" : "☆";
-
-    pin.onclick = (e) => {
-
+    /* FAVORITE */
+    const pin = document.createElement("button");
+    pin.className = "icon-btn pin";
+    pin.innerHTML = item.is_favorite ? "⭐" : "☆";
+    pin.onclick = async (e) => {
       e.stopPropagation();
-
-      togglePin(item.id);
+      await handleFavorite(item.id);
     };
 
     actions.append(del, pin);
 
-    /* CONTENT */
+    const content = document.createElement("div");
 
-    const content =
-      document.createElement("div");
-
-    /* CODE */
-
+    /* CODE (🔥 PRISM HIGHLIGHT) */
     if (type === "code") {
 
-      content.className =
-        "content code";
+      content.className = "content code";
 
-      /* IMPORTANT */
+      content.innerHTML = `
+        <pre><code class="language-javascript">${escapeHtml(item.content)}</code></pre>
+      `;
 
-      content.textContent =
-        item.text;
-
+      // IMPORTANT: re-run Prism after DOM update
+      setTimeout(() => {
+        if (window.Prism) {
+          Prism.highlightAll();
+        }
+      }, 0);
     }
 
     /* LINK */
-
     else if (type === "link") {
-
-      content.className =
-        "content";
-
+      content.className = "content";
       content.innerHTML = `
-        <a
-          href="${item.text}"
-          target="_blank"
-          class="clip-link"
-        >
-          ${item.text}
+        <a href="${item.content}" target="_blank" class="clip-link">
+          ${item.content}
         </a>
       `;
     }
 
     /* TEXT */
-
     else {
-
-      content.className =
-        "content";
-
-      content.textContent =
-        item.text;
+      content.className = "content";
+      content.textContent = item.content;
     }
 
-    /* TIME */
-
-    const time =
-      document.createElement("div");
-
+    const time = document.createElement("div");
     time.className = "time";
-
-    time.textContent =
-      item.time;
+    time.textContent = safeTime(item);
 
     /* COPY */
-
     card.onclick = async () => {
-
-      await navigator
-        .clipboard
-        .writeText(item.text);
-
+      await navigator.clipboard.writeText(item.content);
       showToast();
     };
 
-    /* APPEND */
-
-    card.append(
-      badge,
-      actions,
-      content,
-      time
-    );
-
+    card.append(badge, actions, content, time);
     list.appendChild(card);
   });
 }
 
 /* LOAD */
-
-function load() {
-
-  chrome.storage.local.get(
-    ["clips"],
-    (res) => {
-
-      data = res.clips || [];
-
-      render(data);
-    }
-  );
+async function load() {
+  try {
+    const response = await fetchClips();
+    data = Array.isArray(response) ? response : [];
+    render(data);
+  } catch (error) {
+    console.error(error);
+    list.innerHTML = `<div class="empty">Failed to load clips ❌</div>`;
+  }
 }
 
 /* DELETE */
-
-function deleteClip(id) {
-
-  chrome.storage.local.get(
-    ["clips"],
-    (res) => {
-
-      let clips = res.clips || [];
-
-      clips = clips.filter(
-        item => item.id !== id
-      );
-
-      chrome.storage.local.set(
-        { clips },
-        load
-      );
-    }
-  );
+async function handleDelete(id) {
+  await deleteClipApi(id);
+  await load();
 }
 
-/* PIN */
-
-function togglePin(id) {
-
-  chrome.storage.local.get(
-    ["clips"],
-    (res) => {
-
-      let clips = res.clips || [];
-
-      clips = clips.map(item =>
-
-        item.id === id
-          ? {
-              ...item,
-              pinned: !item.pinned
-            }
-          : item
-      );
-
-      chrome.storage.local.set(
-        { clips },
-        load
-      );
-    }
-  );
+/* FAVORITE */
+async function handleFavorite(id) {
+  await toggleFavoriteApi(id);
+  await load();
 }
 
 /* SEARCH */
+let t = null;
+search?.addEventListener("input", (e) => {
+  clearTimeout(t);
 
-search.addEventListener(
-  "input",
-  (e) => {
+  t = setTimeout(() => {
+    const value = e.target.value.toLowerCase();
 
-    const value =
-      e.target.value.toLowerCase();
-
-    const filtered = data.filter(
-      item =>
-        item.text
-          .toLowerCase()
-          .includes(value)
+    const filtered = data.filter((item) =>
+      item.content?.toLowerCase().includes(value)
     );
 
     render(filtered);
-  }
-);
+  }, 150);
+});
 
 /* TABS */
+document.querySelectorAll(".tab").forEach((tab) => {
+  tab.addEventListener("click", () => {
+    document
+      .querySelectorAll(".tab")
+      .forEach((b) => b.classList.remove("active"));
 
-document
-  .querySelectorAll(".tab")
-  .forEach(tab => {
+    tab.classList.add("active");
 
-    tab.onclick = () => {
-
-      document
-        .querySelectorAll(".tab")
-        .forEach(btn =>
-          btn.classList.remove("active")
-        );
-
-      tab.classList.add("active");
-
-      currentFilter =
-        tab.dataset.type;
-
-      render(data);
-    };
+    currentFilter = tab.dataset.type;
+    render(data);
   });
+});
 
 /* LIVE UPDATE */
-
-chrome.storage.onChanged.addListener(
-  () => {
+chrome.runtime.onMessage.addListener((msg) => {
+  if (msg.type === "CLIP_UPDATED") {
     load();
   }
-);
+});
 
-/* INITIAL LOAD */
-
+/* INIT */
 load();
