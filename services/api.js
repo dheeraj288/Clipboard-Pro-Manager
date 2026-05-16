@@ -5,68 +5,47 @@ const TOKEN =
 
 /* CORE REQUEST WRAPPER */
 async function request(url, options = {}) {
-  try {
-    const response = await fetch(url, {
-      ...options,
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${TOKEN}`,
-        ...(options.headers || {}),
-      },
-    });
-
-    const isJson = response.headers
-      .get("content-type")
-      ?.includes("application/json");
-
-    const data = isJson ? await response.json() : null;
-
-    if (!response.ok) {
-      throw new Error(
-        data?.message || "API request failed"
-      );
-    }
-
-    return data;
-  } catch (error) {
-    console.error("API ERROR:", error.message);
-    throw error;
-  }
-}
-
-/* FETCH CLIPS */
-export async function fetchClips() {
-  const data = await request(`${API_BASE_URL}/clips`, {
-    method: "GET",
+  const response = await fetch(url, {
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${TOKEN}`,
+      ...(options.headers || {}),
+    },
   });
 
-  if (Array.isArray(data)) return data;
-  if (Array.isArray(data?.clips)) return data.clips;
+  const data = await response.json();
 
-  return [];
+  if (!response.ok) {
+    throw new Error(data?.message || "API Error");
+  }
+
+  return data;
 }
 
-/* DELETE CLIP */
+/* FETCH */
+export async function fetchClips() {
+  const res = await request(`${API_BASE_URL}/clips`);
+  return res.clips || res;
+}
+
+/* DELETE */
 export async function deleteClipApi(id) {
-  return await request(`${API_BASE_URL}/clips/${id}`, {
+  return request(`${API_BASE_URL}/clips/${id}`, {
     method: "DELETE",
   });
 }
 
-/* TOGGLE FAVORITE */
+/* FAVORITE */
 export async function toggleFavoriteApi(id) {
-  return await request(
-    `${API_BASE_URL}/clips/${id}/toggle_favorite`,
-    {
-      method: "PATCH",
-    }
-  );
+  return request(`${API_BASE_URL}/clips/${id}/toggle_favorite`, {
+    method: "PATCH",
+  });
 }
 
-/* CREATE CLIP (future-safe) */
-export async function createClipApi(payload) {
-  return await request(`${API_BASE_URL}/clips`, {
-    method: "POST",
-    body: JSON.stringify({ clip: payload }),
+/* INCREMENT COPY COUNT (IMPORTANT FIX) */
+export async function incrementCopyApi(id) {
+  return request(`${API_BASE_URL}/clips/${id}/increment_copy`, {
+    method: "PATCH",
   });
 }

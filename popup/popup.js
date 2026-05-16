@@ -2,6 +2,7 @@ import {
   fetchClips,
   deleteClipApi,
   toggleFavoriteApi,
+  incrementCopyApi,
 } from "../services/api.js";
 
 /* ELEMENTS */
@@ -13,7 +14,7 @@ const toast = document.getElementById("toast");
 let data = [];
 let currentFilter = "all";
 
-/* ESCAPE HTML (SAFE CODE RENDER) */
+/* ESCAPE HTML */
 function escapeHtml(text = "") {
   return text
     .replace(/&/g, "&amp;")
@@ -21,39 +22,14 @@ function escapeHtml(text = "") {
     .replace(/>/g, "&gt;");
 }
 
-/* TYPE DETECTION */
-function getType(text = "") {
-  const trimmed = text.trim();
-
-  const urlRegex = /(https?:\/\/[^\s]+)/i;
-  if (urlRegex.test(trimmed)) return "link";
-
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  if (emailRegex.test(trimmed)) return "text";
-
-  const strongCodePatterns = [
-    /function\s+\w+\s*\(/,
-    /const\s+\w+\s*=/,
-    /let\s+\w+\s*=/,
-    /class\s+\w+/,
-    /=>/,
-    /console\./,
-    /document\./,
-    /chrome\./,
-    /\{\s*[\s\S]*\}/,
-  ];
-
-  if (strongCodePatterns.some((p) => p.test(trimmed))) {
-    return "code";
-  }
-
-  return "text";
-}
-
 /* TOAST */
-function showToast() {
+function showToast(message = "Copied ✔") {
+  toast.textContent = message;
   toast.classList.add("show");
-  setTimeout(() => toast.classList.remove("show"), 1200);
+
+  setTimeout(() => {
+    toast.classList.remove("show");
+  }, 1200);
 }
 
 /* SAFE TIME */
@@ -65,30 +41,40 @@ function safeTime(item) {
 function filterData(items) {
   if (currentFilter === "all") return items;
 
-  return items.filter(
-    (item) => getType(item.content) === currentFilter
-  );
+  return items.filter((item) => {
+    return item.clip_type === currentFilter;
+  });
 }
 
 /* SORT */
 function sortData(items) {
-  return [...items].sort((a, b) => {
-    return (b.is_favorite === true) - (a.is_favorite === true);
-  });
+  return [...items].sort(
+    (a, b) => (b.is_favorite === true) - (a.is_favorite === true)
+  );
 }
 
-/* 🔥 SYNTAX HIGHLIGHT FUNCTION */
-function highlightCode(code) {
-  if (!window.Prism) {
-    return escapeHtml(code);
-  }
+/* BADGE */
+function getBadge(type) {
+  const badgeMap = {
+    code: "💻 CODE",
+    text: "📝 TEXT",
+    link: "🌐 LINK",
+    json: "📦 JSON",
+    email: "📧 EMAIL",
+    command: "⚡ COMMAND",
+  };
 
-  const escaped = escapeHtml(code);
-  return Prism.highlight(
-    escaped,
-    Prism.languages.javascript,
-    "javascript"
-  );
+  return badgeMap[type] || "📋 CLIP";
+}
+
+/* COPY */
+async function copyToClipboard(text) {
+  try {
+    await navigator.clipboard.writeText(text);
+  } catch (error) {
+    console.error(error);
+    throw error;
+  }
 }
 
 /* RENDER */
@@ -98,91 +84,295 @@ function render(items = []) {
   const finalData = filterData(sortData(items));
 
   if (!finalData.length) {
-    list.innerHTML = `<div class="empty">No clips found 🚀</div>`;
+    list.innerHTML = `
+      <div class="empty">
+        No clips found 🚀
+      </div>
+    `;
     return;
   }
 
+  /* GROUPS */
+  const groups = {
+    today: [],
+    yesterday: [],
+    thisWeek: [],
+    older: [],
+  };
+
+  const now = new Date();
+  const oneDay = 1000 * 60 * 60 * 24;
+
   finalData.forEach((item) => {
-    const type = getType(item.content);
+    const created = new Date(item.created_at);
+    const diff = now - created;
 
-    const card = document.createElement("div");
-    card.className = "card";
-
-    const badge = document.createElement("div");
-    badge.className = "badge";
-    badge.textContent = type.toUpperCase();
-
-    const actions = document.createElement("div");
-    actions.className = "actions";
-
-    /* DELETE */
-    const del = document.createElement("button");
-    del.className = "icon-btn delete";
-    del.innerHTML = "✕";
-    del.onclick = async (e) => {
-      e.stopPropagation();
-      await handleDelete(item.id);
-    };
-
-    /* FAVORITE */
-    const pin = document.createElement("button");
-    pin.className = "icon-btn pin";
-    pin.innerHTML = item.is_favorite ? "⭐" : "☆";
-    pin.onclick = async (e) => {
-      e.stopPropagation();
-      await handleFavorite(item.id);
-    };
-
-    actions.append(del, pin);
-
-    const content = document.createElement("div");
-
-    /* CODE (🔥 PRISM HIGHLIGHT) */
-    if (type === "code") {
-
-      content.className = "content code";
-
-      content.innerHTML = `
-        <pre><code class="language-javascript">${escapeHtml(item.content)}</code></pre>
-      `;
-
-      // IMPORTANT: re-run Prism after DOM update
-      setTimeout(() => {
-        if (window.Prism) {
-          Prism.highlightAll();
-        }
-      }, 0);
+    if (created.toDateString() === now.toDateString()) {
+      groups.today.push(item);
+    } else if (diff < oneDay * 2) {
+      groups.yesterday.push(item);
+    } else if (diff < oneDay * 7) {
+      groups.thisWeek.push(item);
+    } else {
+      groups.older.push(item);
     }
-
-    /* LINK */
-    else if (type === "link") {
-      content.className = "content";
-      content.innerHTML = `
-        <a href="${item.content}" target="_blank" class="clip-link">
-          ${item.content}
-        </a>
-      `;
-    }
-
-    /* TEXT */
-    else {
-      content.className = "content";
-      content.textContent = item.content;
-    }
-
-    const time = document.createElement("div");
-    time.className = "time";
-    time.textContent = safeTime(item);
-
-    /* COPY */
-    card.onclick = async () => {
-      await navigator.clipboard.writeText(item.content);
-      showToast();
-    };
-
-    card.append(badge, actions, content, time);
-    list.appendChild(card);
   });
+
+  /* SECTION RENDER */
+  function renderSection(title, items) {
+    if (!items.length) return;
+
+    const section = document.createElement("div");
+    section.className = "timeline-section";
+
+    section.innerHTML = `
+      <div class="timeline-title">
+        ${title}
+      </div>
+    `;
+
+    items.forEach((item) => {
+      const type = item.clip_type || "text";
+      const language = item.language || "plaintext";
+
+      const card = document.createElement("div");
+      card.className = "card";
+
+      /* BADGE */
+      const badge = document.createElement("div");
+      badge.className = "badge";
+      badge.textContent = getBadge(type);
+
+      /* ACTIONS */
+      const actions = document.createElement("div");
+      actions.className = "actions";
+
+      const del = document.createElement("button");
+      del.className = "icon-btn delete";
+      del.innerHTML = "×";
+
+      del.onclick = async (e) => {
+        e.stopPropagation();
+        await handleDelete(item.id);
+      };
+
+      const pin = document.createElement("button");
+      pin.className = "icon-btn pin";
+      pin.innerHTML = item.is_favorite ? "⭐" : "☆";
+
+      pin.onclick = async (e) => {
+        e.stopPropagation();
+        await handleFavorite(item.id);
+      };
+
+      actions.append(del, pin);
+
+      /* META */
+      const meta = document.createElement("div");
+      meta.className = "meta";
+
+      let hostname = "";
+
+      try {
+        if (item.source_url) {
+          hostname = new URL(item.source_url).hostname;
+        }
+      } catch (e) {}
+
+      const favicon = item.source_url
+        ? `https://www.google.com/s2/favicons?domain=${hostname}&sz=64`
+        : "";
+
+      const pageTitle =
+        item.page_title || hostname || "Unknown Source";
+
+      let youtubeThumb = "";
+
+      if (
+        item.source_url &&
+        item.source_url.includes("youtube.com")
+      ) {
+        try {
+          const url = new URL(item.source_url);
+          const videoId = url.searchParams.get("v");
+
+          if (videoId) {
+            youtubeThumb =
+              `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`;
+          }
+        } catch (e) {}
+      }
+
+      meta.innerHTML = `
+        ${
+          youtubeThumb
+            ? `<img src="${youtubeThumb}" class="yt-thumb" />`
+            : ""
+        }
+
+        <div class="meta-left">
+          ${
+            favicon
+              ? `<img src="${favicon}" class="favicon" />`
+              : ""
+          }
+
+          <div class="meta-info">
+            <div class="meta-title">
+              ${escapeHtml(pageTitle)}
+            </div>
+
+            <div class="meta-domain">
+              ${hostname}
+            </div>
+          </div>
+        </div>
+      `;
+
+      /* CONTENT */
+      const content = document.createElement("div");
+
+      if (type === "code") {
+        content.className = "content code";
+
+        content.innerHTML = `
+          <div class="code-header">
+            <span>${language.toUpperCase()}</span>
+          </div>
+
+          <pre class="code-block">
+            <code class="language-${language}">
+${escapeHtml(item.content)}
+            </code>
+          </pre>
+        `;
+
+        setTimeout(() => {
+          if (window.Prism) Prism.highlightAll();
+        }, 0);
+      } else if (type === "link") {
+        content.className = "content";
+
+        content.innerHTML = `
+          <a href="${item.content}" target="_blank" class="clip-link">
+            ${item.content}
+          </a>
+        `;
+      } else {
+        content.className = "content";
+
+        const isLong = item.content.length > 220;
+        const shortText = item.content.slice(0, 220);
+
+        content.innerHTML = `
+          <div class="text-content">
+            ${
+              isLong
+                ? `
+              <span class="preview-text">
+                ${escapeHtml(shortText)}...
+              </span>
+
+              <span class="full-text hidden">
+                ${escapeHtml(item.content)}
+              </span>
+
+              <button class="expand-btn">
+                Show More
+              </button>
+            `
+                : `<span>${escapeHtml(item.content)}</span>`
+            }
+          </div>
+        `;
+
+        if (isLong) {
+          const btn = content.querySelector(".expand-btn");
+          const preview = content.querySelector(".preview-text");
+          const full = content.querySelector(".full-text");
+
+          btn.addEventListener("click", (e) => {
+            e.stopPropagation();
+
+            const expanded =
+              !full.classList.contains("hidden");
+
+            if (expanded) {
+              full.classList.add("hidden");
+              preview.classList.remove("hidden");
+              btn.textContent = "Show More";
+            } else {
+              full.classList.remove("hidden");
+              preview.classList.add("hidden");
+              btn.textContent = "Show Less";
+            }
+          });
+        }
+      }
+
+      /* SOURCE LINK */
+      let sourcePreview = "";
+
+      if (item.source_url) {
+        const domain = (() => {
+          try {
+            return new URL(item.source_url).hostname.replace("www.", "");
+          } catch {
+            return "";
+          }
+        })();
+
+        sourcePreview = `
+          <a class="source-link" href="${item.source_url}" target="_blank">
+            🌐 ${domain}
+          </a>
+        `;
+      }
+
+      /* TIME + COPY COUNT */
+      const time = document.createElement("div");
+      time.className = "time";
+
+      time.innerHTML = `
+        <span>${safeTime(item)}</span>
+        <span class="copy-count">📋 ${item.copy_count || 0}</span>
+      `;
+
+      /* COPY FLOW (FIXED) */
+      card.onclick = async () => {
+        try {
+          await copyToClipboard(item.content);
+
+          item.copy_count = (item.copy_count || 0) + 1;
+
+          card.classList.add("copied");
+          setTimeout(() => card.classList.remove("copied"), 300);
+
+          showToast("Copied ✔");
+
+          await incrementCopyApi(item.id);
+
+          render(data);
+        } catch (err) {
+          console.error(err);
+          showToast("Copy failed ❌");
+        }
+      };
+
+      /* APPEND */
+      card.innerHTML += sourcePreview;
+
+      card.append(badge, actions, meta, content, time);
+      section.appendChild(card);
+    });
+
+    list.appendChild(section);
+  }
+
+  renderSection("TODAY", groups.today);
+  renderSection("YESTERDAY", groups.yesterday);
+  renderSection("THIS WEEK", groups.thisWeek);
+  renderSection("OLDER", groups.older);
 }
 
 /* LOAD */
@@ -193,7 +383,12 @@ async function load() {
     render(data);
   } catch (error) {
     console.error(error);
-    list.innerHTML = `<div class="empty">Failed to load clips ❌</div>`;
+
+    list.innerHTML = `
+      <div class="empty">
+        Failed to load clips ❌
+      </div>
+    `;
   }
 }
 
@@ -211,6 +406,7 @@ async function handleFavorite(id) {
 
 /* SEARCH */
 let t = null;
+
 search?.addEventListener("input", (e) => {
   clearTimeout(t);
 
@@ -228,22 +424,16 @@ search?.addEventListener("input", (e) => {
 /* TABS */
 document.querySelectorAll(".tab").forEach((tab) => {
   tab.addEventListener("click", () => {
-    document
-      .querySelectorAll(".tab")
-      .forEach((b) => b.classList.remove("active"));
+    document.querySelectorAll(".tab").forEach((b) => {
+      b.classList.remove("active");
+    });
 
     tab.classList.add("active");
 
     currentFilter = tab.dataset.type;
+
     render(data);
   });
-});
-
-/* LIVE UPDATE */
-chrome.runtime.onMessage.addListener((msg) => {
-  if (msg.type === "CLIP_UPDATED") {
-    load();
-  }
 });
 
 /* INIT */

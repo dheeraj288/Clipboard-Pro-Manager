@@ -1,20 +1,24 @@
 console.log("Background Running");
 
 /* API CONFIG */
-const API_BASE_URL = "http://localhost:3000/api/v1";
+const API_BASE_URL =
+  "http://localhost:3000/api/v1";
 
 const TOKEN =
   "eyJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjoxfQ.XzMXe6mosyQyDkynFFqMXpggArBY8q9qrErV_OuVbgk";
 
-/* GLOBAL DEBOUNCE STORE (FIX FOR MULTI COPY ISSUE) */
+/* DUPLICATE STORE */
 const recentClips = new Map();
 
-/* CHECK DUPLICATE (GLOBAL LEVEL) */
+/* DUPLICATE CHECK */
 function isDuplicate(text) {
+
   const now = Date.now();
 
   if (recentClips.has(text)) {
-    const lastTime = recentClips.get(text);
+
+    const lastTime =
+      recentClips.get(text);
 
     if (now - lastTime < 2000) {
       return true;
@@ -22,55 +26,119 @@ function isDuplicate(text) {
   }
 
   recentClips.set(text, now);
+
   return false;
 }
 
-/* SYNC TO SERVER */
-async function syncClipToServer(text) {
-  try {
-    const response = await fetch(`${API_BASE_URL}/clips`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${TOKEN}`,
-      },
-      body: JSON.stringify({
-        clip: {
-          title: text.substring(0, 20),
-          content: text,
-          source: "chrome-extension",
-          copied_at: new Date().toISOString(),
-          is_favorite: false,
-        },
-      }),
-    });
+/* SYNC TO RAILS */
+async function syncClipToServer(
+  message
+) {
 
-    const data = await response.json();
-    console.log("SYNCED:", data);
+  try {
+
+    const text =
+      message.content;
+
+    const response =
+      await fetch(
+        `${API_BASE_URL}/clips`,
+        {
+          method: "POST",
+
+          headers: {
+            "Content-Type":
+              "application/json",
+
+            Authorization:
+              `Bearer ${TOKEN}`,
+          },
+
+          body: JSON.stringify({
+            clip: {
+
+              title:
+                text.substring(0, 30),
+
+              content: text,
+
+              source:
+                "chrome-extension",
+
+              copied_at:
+                new Date().toISOString(),
+
+              is_favorite: false,
+
+              source_url:
+                message.source_url,
+
+              page_title:
+                message.page_title,
+            },
+          }),
+        }
+      );
+
+    const data =
+      await response.json();
+
+    console.log(
+      "SYNCED:",
+      data
+    );
+
   } catch (error) {
-    console.error("SYNC ERROR:", error);
+
+    console.error(
+      "SYNC ERROR:",
+      error
+    );
   }
 }
 
 /* INJECT CONTENT SCRIPT */
 async function injectContentScript() {
-  const tabs = await chrome.tabs.query({});
+
+  const tabs =
+    await chrome.tabs.query({});
 
   for (const tab of tabs) {
+
     if (
       tab.url &&
-      (tab.url.startsWith("http://") ||
-        tab.url.startsWith("https://"))
-    ) {
-      try {
-        await chrome.scripting.executeScript({
-          target: { tabId: tab.id },
-          files: ["content.js"],
-        });
+      (
+        tab.url.startsWith(
+          "http://"
+        ) ||
 
-        console.log("Injected into:", tab.id);
+        tab.url.startsWith(
+          "https://"
+        )
+      )
+    ) {
+
+      try {
+
+        await chrome.scripting
+          .executeScript({
+
+            target: {
+              tabId: tab.id
+            },
+
+            files: [
+              "content.js"
+            ],
+          });
+
+        console.log(
+          "Injected:",
+          tab.id
+        );
+
       } catch (error) {
-        // ignore invalid tabs
+        /* ignore */
       }
     }
   }
@@ -79,43 +147,101 @@ async function injectContentScript() {
 injectContentScript();
 
 /* MESSAGE HANDLER */
-chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
-  if (msg.type === "ADD") {
-    if (!msg.text) return;
+chrome.runtime.onMessage
+  .addListener(
+    (
+      message,
+      sender,
+      sendResponse
+    ) => {
 
-    /* GLOBAL DUPLICATE PREVENTION */
-    if (isDuplicate(msg.text)) {
-      sendResponse({ success: false, duplicate: true });
-      return;
-    }
+      if (
+        message.type !==
+        "SAVE_CLIP"
+      ) {
+        return;
+      }
 
-    chrome.storage.local.get(["clips"], (res) => {
-      let clips = res.clips || [];
+      const text =
+        message.content?.trim();
 
-      /* remove duplicates */
-      clips = clips.filter((i) => i.text !== msg.text);
+      if (!text) return;
 
-      /* add new */
-      clips.unshift({
-        id: Date.now(),
-        text: msg.text,
-        time: new Date().toLocaleString(),
-        pinned: false,
-      });
+      /* DUPLICATE BLOCK */
+      if (
+        isDuplicate(text)
+      ) {
 
-      clips = clips.slice(0, 300);
-
-      chrome.storage.local.set({ clips }, async () => {
-        await syncClipToServer(msg.text);
-
-        chrome.runtime.sendMessage({
-          type: "CLIP_UPDATED",
+        sendResponse({
+          success: false,
+          duplicate: true,
         });
 
-        sendResponse({ success: true });
-      });
-    });
+        return;
+      }
 
-    return true;
-  }
-});
+      chrome.storage.local.get(
+        ["clips"],
+
+        (res) => {
+
+          let clips =
+            res.clips || [];
+
+          /* REMOVE DUPLICATES */
+          clips =
+            clips.filter(
+              (i) =>
+                i.text !== text
+            );
+
+          /* ADD NEW */
+          clips.unshift({
+
+            id: Date.now(),
+
+            text,
+
+            time:
+              new Date()
+                .toLocaleString(),
+
+            pinned: false,
+
+            source_url:
+              message.source_url,
+
+            page_title:
+              message.page_title,
+          });
+
+          /* LIMIT */
+          clips =
+            clips.slice(0, 300);
+
+          chrome.storage.local.set(
+            { clips },
+
+            async () => {
+
+              await syncClipToServer(
+                message
+              );
+
+              chrome.runtime
+                .sendMessage({
+                  type:
+                    "CLIP_UPDATED",
+                });
+
+              sendResponse({
+                success: true,
+              });
+            }
+          );
+        }
+      );
+
+      return true;
+    }
+  );
